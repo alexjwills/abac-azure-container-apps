@@ -1,0 +1,16 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+crash.log
+crash.*.log
+
+# Python
+.env
+.venv/
+__pycache__/
+
+# Local notes
+PROGRESS-LOG.md

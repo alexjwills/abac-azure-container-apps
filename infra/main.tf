@@ -121,6 +121,9 @@ resource "azurerm_container_app_environment" "env" {
   logs_destination           = "log-analytics"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
   tags                       = local.tags
+  timeouts {
+    delete = "60m"
+  }
 }
 
 output "acr_login_server" {

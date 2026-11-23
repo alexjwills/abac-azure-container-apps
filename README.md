@@ -114,6 +114,22 @@ docs/images/ Screenshots
 
 The biggest design difference is how the identity is matched. The AWS policy compares the role's `department` tag with the object's tag, so one policy works for every department. Here the value `engineering` is fixed in this identity's role assignment. Azure can compare an attribute of the identity too, using Entra custom security attributes, but that needs a paid Entra licence, so for this lab I chose the fixed value.
 
+## Bicep comparison
+
+The `bicep/` folder rebuilds the resource group and managed identity in Bicep, so I could compare it with Terraform on the same small piece. `main.bicep` deploys at subscription scope, creates the resource group, and calls `identity.bicep` as a module scoped to that group.
+
+| | Terraform | Bicep |
+| --- | --- | --- |
+| Clouds | Azure, AWS and many others | Azure only |
+| Record of what exists | A state file, which needed its own storage | None. Azure is the record, plus its deployment history |
+| Preview | `terraform plan`, compared with state | `az deployment sub what-if`, compared with live Azure |
+| API versions | Chosen by the provider | Set in each resource line. I used stable versions, not previews |
+| Clean-up | `terraform destroy` removes what's in state | No destroy. Delete the resource group, or use a Deployment Stack |
+
+I'd use Terraform for anything spanning clouds or needing a strong record of what it manages, and Bicep where a team is Azure-only and wants new Azure features as soon as they ship.
+
+To try it: `az deployment sub what-if --location uksouth --template-file bicep/main.bicep`, then the same with `create`, and `az group delete --name rg-abac-bicep` to remove it.
+
 ## Known gaps
 
 - Listing isn't covered by the condition, so the identity can see every blob name. The same is true of `ListBucket` in the AWS version.

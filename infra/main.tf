@@ -1,8 +1,8 @@
 locals {
   location = "uksouth"
   tags = {
-    project    = "abac-azure"
-    managed_by = "terraform"
+    project     = "abac-azure"
+    managed_by  = "terraform"
     environment = "lab"
   }
 }

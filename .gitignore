@@ -6,6 +6,7 @@
 *.tfplan
 crash.log
 crash.*.log
+tfplan
 
 # Python
 .env

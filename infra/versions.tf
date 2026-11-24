@@ -25,3 +25,8 @@ variable "subscription_id" {
   type        = string
   description = "Azure Subscription ID"
 }
+
+variable "admin_object_id" {
+  type        = string
+  description = "Object ID of the admin user who uploads test data and pushes images"
+}

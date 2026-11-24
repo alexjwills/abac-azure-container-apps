@@ -1,8 +1,9 @@
 locals {
   location = "uksouth"
   tags = {
-    project    = "abac-azure"
-    managed_by = "terraform"
+    project     = "abac-azure"
+    managed_by  = "terraform"
+    environment = "lab"
   }
 }
 
@@ -26,8 +27,6 @@ output "identity_client_id" {
 output "identity_principal_id" {
   value = azurerm_user_assigned_identity.workload.principal_id
 }
-
-data "azurerm_client_config" "current" {}
 
 resource "azurerm_storage_account" "data" {
   name                     = "stabacdataajwtf"
@@ -56,7 +55,8 @@ resource "azurerm_storage_container" "dept" {
 resource "azurerm_role_assignment" "data_blob" {
   scope                = azurerm_storage_account.data.id
   role_definition_name = "Storage Blob Data Owner"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = var.admin_object_id
+  principal_type       = "User"
 }
 
 resource "azurerm_role_assignment" "workload_engineering_read" {
@@ -100,7 +100,8 @@ resource "azurerm_role_assignment" "workload_acr_pull" {
 resource "azurerm_role_assignment" "me_acr_push" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPush"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = var.admin_object_id
+  principal_type       = "User"
 }
 
 # Where logs go. Like a CloudWatch log group, but queryable with KQL.

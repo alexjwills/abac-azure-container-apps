@@ -22,6 +22,15 @@ resource "azurerm_federated_identity_credential" "github_main" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
 }
 
+resource "azurerm_federated_identity_credential" "github_pr" {
+  name                      = "github-pr"
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = "https://token.actions.githubusercontent.com"
+  subject                   = "repo:alexjwills@327954023/abac-azure-container-apps@1457612196:pull_request"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github_actions.id
+}
+
+
 resource "azurerm_storage_account" "tfstate" {
   name                     = "sttfstateajwtf"
   resource_group_name      = azurerm_resource_group.tfstate.name
@@ -53,8 +62,15 @@ resource "azurerm_role_assignment" "tfstate_blob" {
 }
 
 resource "azurerm_role_assignment" "github_actions_reader" {
-  scope                = azurerm_resource_group.tfstate.id
+  scope                = "/subscriptions/${var.subscription_id}"
   role_definition_name = "Reader"
+  principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
+  principal_type       = "ServicePrincipal"
+}
+
+resource "azurerm_role_assignment" "github_actions_state" {
+  scope                = azurerm_storage_account.tfstate.id
+  role_definition_name = "Storage Blob Data Contributor"
   principal_id         = azurerm_user_assigned_identity.github_actions.principal_id
   principal_type       = "ServicePrincipal"
 }

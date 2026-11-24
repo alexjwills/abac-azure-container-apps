@@ -3,6 +3,7 @@ locals {
   tags = {
     project    = "abac-azure"
     managed_by = "terraform"
+    environment = "lab"
   }
 }
 

@@ -3,9 +3,6 @@ name: Terraform plan
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "infra/**"
-      - ".github/workflows/terraform-plan.yaml"
 
 permissions:
   id-token: write

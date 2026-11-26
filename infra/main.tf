@@ -20,15 +20,13 @@ resource "azurerm_user_assigned_identity" "workload" {
   tags                = local.tags
 }
 
-output "identity_client_id" {
-  value = azurerm_user_assigned_identity.workload.client_id
-}
-
-output "identity_principal_id" {
-  value = azurerm_user_assigned_identity.workload.principal_id
-}
-
 resource "azurerm_storage_account" "data" {
+  #checkov:skip=CKV_AZURE_33:Queue service not used
+  #checkov:skip=CKV_AZURE_59:Public network access, private endpoint planned in Project B
+  #checkov:skip=CKV2_AZURE_33:Private endpoint planned in Project B
+  #checkov:skip=CKV_AZURE_206:LRS is enough for short-lived lab data
+  #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys acceptable for lab data
+
   name                     = "stabacdataajwtf"
   resource_group_name      = azurerm_resource_group.abac.name
   location                 = azurerm_resource_group.abac.location
@@ -42,16 +40,27 @@ resource "azurerm_storage_account" "data" {
 
   blob_properties {
     versioning_enabled = true
+
+    delete_retention_policy {
+      days = 7
+    }
+
+    container_delete_retention_policy {
+      days = 7
+    }
   }
 }
 
 resource "azurerm_storage_container" "dept" {
+  #checkov:skip=CKV2_AZURE_21:Storage logging planned in Project E
+
   for_each              = toset(["engineering", "finance", "marketing"])
   name                  = each.value
   storage_account_id    = azurerm_storage_account.data.id
   container_access_type = "private"
 }
 
+# Admin uploads test blobs and sets index tags (Contributor can't set tags)
 resource "azurerm_role_assignment" "data_blob" {
   scope                = azurerm_storage_account.data.id
   role_definition_name = "Storage Blob Data Owner"
@@ -59,6 +68,8 @@ resource "azurerm_role_assignment" "data_blob" {
   principal_type       = "User"
 }
 
+# Blob reads allowed only where the department index tag is engineering.
+# Listing isn't covered by the condition, so all blob names are visible.
 resource "azurerm_role_assignment" "workload_engineering_read" {
   scope                = azurerm_storage_account.data.id
   role_definition_name = "Storage Blob Data Reader"
@@ -67,28 +78,35 @@ resource "azurerm_role_assignment" "workload_engineering_read" {
   condition_version    = "2.0"
   condition            = <<-EOT
     (
- (
-  !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND NOT SubOperationMatches{'Blob.List'})
- )
- OR
- (
-  @Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags:department<$key_case_sensitive$>] StringEquals 'engineering'
- )
-)
+     (
+      !(ActionMatches{'Microsoft.Storage/storageAccounts/blobServices/containers/blobs/read'} AND NOT SubOperationMatches{'Blob.List'})
+     )
+     OR
+     (
+      @Resource[Microsoft.Storage/storageAccounts/blobServices/containers/blobs/tags:department<$key_case_sensitive$>] StringEquals 'engineering'
+     )
+    )
   EOT
 }
 
-# The registry: where the image is stored. Like ECR.
 resource "azurerm_container_registry" "acr" {
+  #checkov:skip=CKV_AZURE_163:Image scanning via Defender planned in Project E
+  #checkov:skip=CKV_AZURE_139:Premium only, revisit with private endpoints in Project B
+  #checkov:skip=CKV_AZURE_164:Premium only, not needed for lab
+  #checkov:skip=CKV_AZURE_165:Premium only, not needed for lab
+  #checkov:skip=CKV_AZURE_166:Premium only, not needed for lab
+  #checkov:skip=CKV_AZURE_167:Premium only, not needed for lab
+  #checkov:skip=CKV_AZURE_233:Premium only, not needed for lab
+  #checkov:skip=CKV_AZURE_237:Premium only, revisit with private endpoints in Project B
+
   name                = "acrabacajwtf" # letters and numbers only, globally unique
   resource_group_name = azurerm_resource_group.abac.name
   location            = azurerm_resource_group.abac.location
   sku                 = "Basic"
-  admin_enabled       = false # no admin username and password: Entra only
+  admin_enabled       = false # Entra auth only
   tags                = local.tags
 }
 
-# The workload identity can pull images from this registry only.
 resource "azurerm_role_assignment" "workload_acr_pull" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPull"
@@ -96,7 +114,6 @@ resource "azurerm_role_assignment" "workload_acr_pull" {
   principal_type       = "ServicePrincipal"
 }
 
-# You can push images to this registry.
 resource "azurerm_role_assignment" "me_acr_push" {
   scope                = azurerm_container_registry.acr.id
   role_definition_name = "AcrPush"
@@ -104,7 +121,6 @@ resource "azurerm_role_assignment" "me_acr_push" {
   principal_type       = "User"
 }
 
-# Where logs go. Like a CloudWatch log group, but queryable with KQL.
 resource "azurerm_log_analytics_workspace" "logs" {
   name                = "log-abac-tf"
   resource_group_name = azurerm_resource_group.abac.name
@@ -114,7 +130,6 @@ resource "azurerm_log_analytics_workspace" "logs" {
   tags                = local.tags
 }
 
-# The environment that jobs run in, sending its logs to the workspace. Like an ECS cluster.
 resource "azurerm_container_app_environment" "env" {
   name                       = "cae-abac-tf"
   resource_group_name        = azurerm_resource_group.abac.name
@@ -122,37 +137,34 @@ resource "azurerm_container_app_environment" "env" {
   logs_destination           = "log-analytics"
   log_analytics_workspace_id = azurerm_log_analytics_workspace.logs.id
   tags                       = local.tags
+
+  # Deletion regularly takes longer than the 30 minute default
   timeouts {
     delete = "60m"
   }
 }
 
-output "acr_login_server" {
-  value = azurerm_container_registry.acr.login_server
-}
-
+# The image must already be in the registry when this is created
 resource "azurerm_container_app_job" "abac_test" {
   name                         = "caj-abac-test-tf"
   location                     = azurerm_resource_group.abac.location
   resource_group_name          = azurerm_resource_group.abac.name
-  container_app_environment_id = azurerm_container_app_environment.env.id # runs in your environment
+  container_app_environment_id = azurerm_container_app_environment.env.id
   replica_timeout_in_seconds   = 300
-  replica_retry_limit          = 0 # fail once, don't retry
+  replica_retry_limit          = 0
   tags                         = local.tags
 
-  # Started by hand, like ECS run-task.
   manual_trigger_config {
     parallelism              = 1
     replica_completion_count = 1
   }
 
-  # The job runs as your managed identity. Like an ECS task role.
   identity {
     type         = "UserAssigned"
     identity_ids = [azurerm_user_assigned_identity.workload.id]
   }
 
-  # Pull the image using the same identity (its AcrPull role). No registry password.
+  # Pull with the managed identity, no registry password
   registry {
     server   = azurerm_container_registry.acr.login_server
     identity = azurerm_user_assigned_identity.workload.id
@@ -170,11 +182,24 @@ resource "azurerm_container_app_job" "abac_test" {
         value = azurerm_storage_account.data.name
       }
       env {
-        name  = "AZURE_CLIENT_ID" # which identity DefaultAzureCredential uses
+        name  = "AZURE_CLIENT_ID" # selects the user-assigned identity for DefaultAzureCredential
         value = azurerm_user_assigned_identity.workload.client_id
       }
     }
   }
 
+  # No reference links the job to its AcrPull role, so make the order explicit
   depends_on = [azurerm_role_assignment.workload_acr_pull]
+}
+
+output "identity_client_id" {
+  value = azurerm_user_assigned_identity.workload.client_id
+}
+
+output "identity_principal_id" {
+  value = azurerm_user_assigned_identity.workload.principal_id
+}
+
+output "acr_login_server" {
+  value = azurerm_container_registry.acr.login_server
 }

@@ -8,3 +8,8 @@ plugin "terraform" {
   enabled = true
   preset  = "recommended"
 }
+
+# Lab resources are destroyed after each stage, so prevent_destroy would block clean-up
+rule "azurerm_resources_missing_prevent_destroy" {
+  enabled = false
+}

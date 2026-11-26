@@ -52,6 +52,14 @@ jobs:
 
       - name: tflint
         run: tflint -f compact
+      
+      - name: Checkov
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: infra
+          framework: terraform
+          quiet: true
+          soft_fail: true
 
       - name: Terraform plan
         run: terraform plan -input=false

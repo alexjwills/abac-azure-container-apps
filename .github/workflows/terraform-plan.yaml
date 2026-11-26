@@ -42,5 +42,16 @@ jobs:
       - name: Terraform validate
         run: terraform validate
 
+      - name: Set up tflint
+        uses: terraform-linters/setup-tflint@v4
+
+      - name: tflint init
+        run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: tflint
+        run: tflint -f compact
+
       - name: Terraform plan
         run: terraform plan -input=false

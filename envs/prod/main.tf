@@ -1,8 +1,8 @@
 module "abac" {
   source = "../../modules/abac-app"
 
-  environment     = "prod"
-  admin_object_id = var.admin_object_id
+  environment              = "prod"
+  admin_object_id          = var.admin_object_id
   storage_replication_type = "ZRS"
 }
 

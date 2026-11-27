@@ -11,7 +11,7 @@ terraform {
     resource_group_name  = "rg-tfstate-tf"
     storage_account_name = "sttfstateajwtf"
     container_name       = "tfstate"
-    key                  = "abac-infra.tfstate"
+    key                  = "abac-dev.tfstate"
     use_azuread_auth     = true
   }
 }

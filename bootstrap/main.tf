@@ -95,6 +95,14 @@ resource "azurerm_federated_identity_credential" "github_production" {
   user_assigned_identity_id = azurerm_user_assigned_identity.github_apply.id
 }
 
+resource "azurerm_federated_identity_credential" "github_dev" {
+  name                      = "github-dev"
+  audience                  = ["api://AzureADTokenExchange"]
+  issuer                    = "https://token.actions.githubusercontent.com"
+  subject                   = "repo:alexjwills@327954023/abac-azure-container-apps@1457612196:environment:dev"
+  user_assigned_identity_id = azurerm_user_assigned_identity.github_apply.id
+}
+
 resource "azurerm_role_assignment" "github_apply_state" {
   scope                = azurerm_storage_account.tfstate.id
   role_definition_name = "Storage Blob Data Contributor"

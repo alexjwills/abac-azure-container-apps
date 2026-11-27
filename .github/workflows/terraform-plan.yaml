@@ -20,10 +20,6 @@ jobs:
       TF_VAR_subscription_id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       TF_VAR_admin_object_id: ${{ secrets.AZURE_ADMIN_OBJECT_ID }}
 
-    defaults:
-      run:
-        working-directory: infra
-
     steps:
       - name: Check out code
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -33,32 +29,40 @@ jobs:
         with:
           terraform_version: 1.17.2
 
-      - name: Terraform init
-        run: terraform init
-
       - name: Terraform fmt
-        run: terraform fmt -check
-
-      - name: Terraform validate
-        run: terraform validate
+        run: terraform fmt -check -recursive
 
       - name: Set up tflint
         uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4
 
       - name: tflint init
-        run: tflint --init
+        run: tflint --init --config "$GITHUB_WORKSPACE/.tflint.hcl"
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
       - name: tflint
-        run: tflint -f compact
-      
+        run: |
+          for dir in modules/abac-app envs/dev envs/prod; do
+            tflint --chdir="$dir" --config "$GITHUB_WORKSPACE/.tflint.hcl" -f compact
+          done
+
       - name: Checkov
         uses: bridgecrewio/checkov-action@b782b35c8411ff565b881fba67ceebdb426d7dc4 # v12
         with:
-          directory: infra
+          directory: modules/abac-app
           framework: terraform
           quiet: true
 
-      - name: Terraform plan
-        run: terraform plan -input=false
+      - name: Plan dev
+        working-directory: envs/dev
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false
+
+      - name: Plan prod
+        working-directory: envs/prod
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform plan -input=false

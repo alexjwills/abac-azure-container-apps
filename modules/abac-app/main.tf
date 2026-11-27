@@ -3,18 +3,18 @@ locals {
   tags = {
     project     = "abac-azure"
     managed_by  = "terraform"
-    environment = "lab"
+    environment = var.environment
   }
 }
 
 resource "azurerm_resource_group" "abac" {
-  name     = "rg-abac-tf"
+  name     = "rg-abac-${var.environment}-tf"
   location = local.location
   tags     = local.tags
 }
 
 resource "azurerm_user_assigned_identity" "workload" {
-  name                = "id-abac-workload-tf"
+  name                = "id-abac-workload-${var.environment}-tf"
   resource_group_name = azurerm_resource_group.abac.name
   location            = azurerm_resource_group.abac.location
   tags                = local.tags
@@ -27,12 +27,12 @@ resource "azurerm_storage_account" "data" {
   #checkov:skip=CKV_AZURE_206:LRS is enough for short-lived lab data
   #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys acceptable for lab data
 
-  name                     = "stabacdataajwtf"
+  name                     = "stabac${var.environment}ajwtf"
   resource_group_name      = azurerm_resource_group.abac.name
   location                 = azurerm_resource_group.abac.location
   tags                     = local.tags
   account_tier             = "Standard"
-  account_replication_type = "LRS"
+  account_replication_type = var.storage_replication_type
 
   min_tls_version                 = "TLS1_2"
   allow_nested_items_to_be_public = false
@@ -99,7 +99,7 @@ resource "azurerm_container_registry" "acr" {
   #checkov:skip=CKV_AZURE_233:Premium only, not needed for lab
   #checkov:skip=CKV_AZURE_237:Premium only, revisit with private endpoints in Project B
 
-  name                = "acrabacajwtf" # letters and numbers only, globally unique
+  name                = "acrabac${var.environment}ajwtf" # letters and numbers only, globally unique
   resource_group_name = azurerm_resource_group.abac.name
   location            = azurerm_resource_group.abac.location
   sku                 = "Basic"
@@ -122,7 +122,7 @@ resource "azurerm_role_assignment" "me_acr_push" {
 }
 
 resource "azurerm_log_analytics_workspace" "logs" {
-  name                = "log-abac-tf"
+  name                = "log-abac-${var.environment}-tf"
   resource_group_name = azurerm_resource_group.abac.name
   location            = azurerm_resource_group.abac.location
   sku                 = "PerGB2018"
@@ -131,7 +131,7 @@ resource "azurerm_log_analytics_workspace" "logs" {
 }
 
 resource "azurerm_container_app_environment" "env" {
-  name                       = "cae-abac-tf"
+  name                       = "cae-abac-${var.environment}-tf"
   resource_group_name        = azurerm_resource_group.abac.name
   location                   = azurerm_resource_group.abac.location
   logs_destination           = "log-analytics"
@@ -146,7 +146,7 @@ resource "azurerm_container_app_environment" "env" {
 
 # The image must already be in the registry when this is created
 resource "azurerm_container_app_job" "abac_test" {
-  name                         = "caj-abac-test-tf"
+  name                         = "caj-abac-test-${var.environment}-tf"
   location                     = azurerm_resource_group.abac.location
   resource_group_name          = azurerm_resource_group.abac.name
   container_app_environment_id = azurerm_container_app_environment.env.id
@@ -190,16 +190,4 @@ resource "azurerm_container_app_job" "abac_test" {
 
   # No reference links the job to its AcrPull role, so make the order explicit
   depends_on = [azurerm_role_assignment.workload_acr_pull]
-}
-
-output "identity_client_id" {
-  value = azurerm_user_assigned_identity.workload.client_id
-}
-
-output "identity_principal_id" {
-  value = azurerm_user_assigned_identity.workload.principal_id
-}
-
-output "acr_login_server" {
-  value = azurerm_container_registry.acr.login_server
 }
